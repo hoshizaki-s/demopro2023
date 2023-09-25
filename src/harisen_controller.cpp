@@ -14,8 +14,9 @@
 #include <map>
 #include <math.h>
 
-#define ARM_CLOSE 800
+#define ARM_CLOSE 1000
 #define ARM_OPEN 0
+#define MAX_VEL 0.2
 
 using namespace dynamixel;
 
@@ -26,6 +27,8 @@ ros::Publisher set_position_pub_;
 ros::Subscriber first_flag_sub_;
 ros::Subscriber second_flag_sub_; 
 
+ros::Publisher twist_pub_;
+
 
 // オドメトリから得られる現在の位置と姿勢
 double robot_x, robot_y;
@@ -33,8 +36,6 @@ double roll, pitch, yaw;
 geometry_msgs::Quaternion robot_r;
 
 geometry_msgs::Twist twist; // 指令する速度、角速度
-
-std::map<std::string, double> params_; // パラメータをここに格納
 geometry_msgs::PoseStamped goal; // 目標地点
 
 // オドメトリのコールバック
@@ -54,17 +55,17 @@ void geometry_quat_to_rpy(double &roll, double &pitch, double &yaw, geometry_msg
 }
 
 //　goalで指定した位置に近いかの判定を行う
-int near_position(geometry_msgs::PoseStamped goal)
+int near_position(geometry_msgs::PoseStamped fgoal)
 {
-	double difx = robot_x - goal.pose.position.x;
-	double dify = robot_y - goal.pose.position.y;
+	double difx = robot_x - fgoal.pose.position.x;
+	double dify = robot_y - fgoal.pose.position.y;
 	return (sqrt(difx * difx + dify * dify) < 0.2);
 }
 
 
-void go_position(geometry_msgs::PoseStamped goal)
+void go_position(geometry_msgs::PoseStamped fgoal)
 {
-    double k_v = 0.1; // 速度の係数	0.1
+    double k_v = 0.8; // 速度の係数	0.1
     double k_w = 0.1; // 角速度の係数
 	
 	// 指令する速度と角速度
@@ -72,7 +73,7 @@ void go_position(geometry_msgs::PoseStamped goal)
 	double w = 0.0;
 
 	//　角速度の計算
-	double theta = atan2(goal.pose.position.y - robot_y, goal.pose.position.x - robot_x);
+	double theta = atan2(fgoal.pose.position.y - robot_y, fgoal.pose.position.x - robot_x);
 	while (theta <= -M_PI || M_PI <= theta)
 	{
 		if (theta <= -M_PI)
@@ -106,10 +107,12 @@ void go_position(geometry_msgs::PoseStamped goal)
 
 	// 速度の計算(追従する点が自分より前か後ろかで計算を変更)	クリッピングも関数化したほうが良い。
 	if (theta <= M_PI / 2 && theta >= -M_PI / 2)
-		v = k_v * ((goal.pose.position.x - robot_x) * (goal.pose.position.x - robot_x) + (goal.pose.position.y - robot_y) * (goal.pose.position.y - robot_y));
+		v = k_v * ((fgoal.pose.position.x - robot_x) * (fgoal.pose.position.x - robot_x) + (fgoal.pose.position.y - robot_y) * (goal.pose.position.y - robot_y));
 	else
-		v = -k_v * ((goal.pose.position.x - robot_x) * (goal.pose.position.x - robot_x) + (goal.pose.position.y - robot_y) * (goal.pose.position.y - robot_y));
+		v = -k_v * ((fgoal.pose.position.x - robot_x) * (fgoal.pose.position.x - robot_x) + (fgoal.pose.position.y - robot_y) * (goal.pose.position.y - robot_y));
 	
+    if(v > MAX_VEL) v = 0.15;
+
 	// publishする値の格納
 	twist.linear.x = v;
 	twist.linear.y = 0.0;
@@ -118,26 +121,16 @@ void go_position(geometry_msgs::PoseStamped goal)
 	twist.angular.y = 0.0;
 	twist.angular.z = w;
 
-	std::cout << "v: " << v << ", w: " << w << std::endl;
+    twist_pub_.publish(twist);  
+	//std::cout << "v: " << v << ", w: " << w << std::endl;
 
 }
 
-void check_flag(){
-    if(flag1_ && flag2_){
-        dynamixel_sdk_examples::SetPosition msg;
-        msg.id = 1;
-        msg.position = ARM_OPEN;
-        set_position_pub_.publish(msg);
-        end_flag_ = true;
-    }
-}
 void flag1_callback(const std_msgs::Int32 flag){
     flag1_ = (0==flag.data);
-    check_flag();
 }
 void flag2_callback(const std_msgs::Int32 flag){
     flag2_ = (0==flag.data);
-    check_flag();
 }
 
 int main(int argc, char ** argv){
@@ -146,17 +139,69 @@ int main(int argc, char ** argv){
     set_position_pub_ = nh_.advertise<dynamixel_sdk_examples::SetPosition>("/set_position", 10);
     first_flag_sub_ = nh_.subscribe("/first_flag", 10, flag1_callback);
     second_flag_sub_ = nh_.subscribe("/second_flag", 10, flag2_callback);
+
+    ros::Subscriber odom_sub = nh_.subscribe("ypspur_ros/odom", 100, odom_callback);
+	twist_pub_ = nh_.advertise<geometry_msgs::Twist>("ypspur_ros/cmd_vel", 1000);
     
+    // odometryの値の初期化
+	robot_x = 0.0;
+	robot_y = 0.0;
+	robot_r.x = 0.0;
+	robot_r.y = 0.0;
+	robot_r.z = 0.0;
+	robot_r.w = 1.0;
+
+	// syoki地点の設定
+    goal.pose.position.x = 0;
+    goal.pose.position.y = 0;
+
     dynamixel_sdk_examples::SetPosition msg;
     msg.id = 1;
     msg.position = ARM_CLOSE;
     set_position_pub_.publish(msg);
     sleep(1);
     set_position_pub_.publish(msg);
+
+    while(ros::ok()){
+        ros::spinOnce();
+        go_position(goal);
+        if (near_position(goal)){
+            twist.linear.x = 0.0;
+            twist.angular.z = 0.0;
+            twist_pub_.publish(twist);   
+            break;
+        } 
+    }
     
+    // 目標地点の設定
+    goal.pose.position.x = 1;
+    goal.pose.position.y = 0;
+
     while(ros::ok()){
         if(end_flag_)break;
         ros::spinOnce();
+        if(flag1_ && flag2_){
+            while(ros::ok()){
+                ros::spinOnce();
+                go_position(goal);
+                if (near_position(goal)){
+                    twist.linear.x = 0.0;
+                    twist.angular.z = 0.0;
+                    twist_pub_.publish(twist);   
+                    break;
+                } 
+            }
+            dynamixel_sdk_examples::SetPosition msg;
+            msg.id = 1;
+            msg.position = ARM_OPEN;
+            set_position_pub_.publish(msg);
+            sleep(2);
+            msg.id = 1;
+            msg.position = ARM_CLOSE;
+            set_position_pub_.publish(msg);
+            end_flag_ = true;
+            break;
+        }
     }
     return 0;
 
