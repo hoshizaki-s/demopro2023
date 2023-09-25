@@ -105,13 +105,17 @@ void go_position(geometry_msgs::PoseStamped fgoal)
 
 	w = k_w * theta;
 
+    v = k_v * (fgoal.pose.position.x - robot_x);
+
 	// 速度の計算(追従する点が自分より前か後ろかで計算を変更)	クリッピングも関数化したほうが良い。
 	if (theta <= M_PI / 2 && theta >= -M_PI / 2)
-		v = k_v * ((fgoal.pose.position.x - robot_x) * (fgoal.pose.position.x - robot_x) + (fgoal.pose.position.y - robot_y) * (goal.pose.position.y - robot_y));
+		w = k_w * theta;
 	else
-		v = -k_v * ((fgoal.pose.position.x - robot_x) * (fgoal.pose.position.x - robot_x) + (fgoal.pose.position.y - robot_y) * (goal.pose.position.y - robot_y));
+		w = -k_w * theta;
 	
-    if(v > MAX_VEL) v = 0.15;
+    if(abs(v) > MAX_VEL){
+        v = 0.15*v/abs(v);
+    }
 
 	// publishする値の格納
 	twist.linear.x = v;
@@ -151,16 +155,15 @@ int main(int argc, char ** argv){
 	robot_r.z = 0.0;
 	robot_r.w = 1.0;
 
-	// syoki地点の設定
-    goal.pose.position.x = 0;
-    goal.pose.position.y = 0;
-
     dynamixel_sdk_examples::SetPosition msg;
     msg.id = 1;
     msg.position = ARM_CLOSE;
     set_position_pub_.publish(msg);
     sleep(1);
     set_position_pub_.publish(msg);
+
+    goal.pose.position.x = 0.0;
+    goal.pose.position.y = 0.0;
 
     while(ros::ok()){
         ros::spinOnce();
@@ -173,9 +176,8 @@ int main(int argc, char ** argv){
         } 
     }
     
-    // 目標地点の設定
-    goal.pose.position.x = 1;
-    goal.pose.position.y = 0;
+    goal.pose.position.x = 1.0;
+    goal.pose.position.y = 0.0;
 
     while(ros::ok()){
         if(end_flag_)break;
