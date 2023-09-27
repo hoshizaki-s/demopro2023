@@ -4,7 +4,7 @@
 #include "dynamixel_sdk_examples/GetPosition.h"
 #include "dynamixel_sdk_examples/SetPosition.h"
 #include "dynamixel_sdk/dynamixel_sdk.h"
-//#include <sound_play.h>
+#include <sound_play/SoundRequest.h>
 
 
 #include <geometry_msgs/PoseStamped.h>
@@ -21,6 +21,11 @@
 #define MAX_VEL 0.15
 #define MAX_OMEGA 0.05
 
+#define WAKE_WORDS "/home/hoshizaki-s/workspace/src/demopro2023/start.wav"
+#define ATTACK_WORDS "/home/hoshizaki-s/workspace/src/demopro2023/attack.wav"
+#define MOVE_WORDS "/home/hoshizaki-s/workspace/src/demopro2023/move.wav"
+#define END_WORDS "/home/hoshizaki-s/workspace/src/demopro2023/end.wav"
+
 using namespace dynamixel;
 
 bool flag1_ = false;
@@ -30,7 +35,7 @@ ros::Publisher set_position_pub_;
 ros::Subscriber first_flag_sub_;
 ros::Subscriber second_flag_sub_; 
 
-ros::Publisher twist_pub_;
+ros::Publisher twist_pub_, sound_pub_;
 
 
 // オドメトリから得られる現在の位置と姿勢
@@ -154,7 +159,14 @@ int main(int argc, char ** argv){
 
     ros::Subscriber odom_sub = nh_.subscribe("ypspur_ros/odom", 100, odom_callback);
 	twist_pub_ = nh_.advertise<geometry_msgs::Twist>("ypspur_ros/cmd_vel", 1000);
+    sound_pub_ = nh_.advertise<sound_play::SoundRequest>("/robotsound", 10);
     
+    sound_play::SoundRequest sound_request;
+    sound_request.sound = -2;
+    sound_request.command = 1;
+    sound_request.volume = 1.0;
+    sound_request.arg = WAKE_WORDS;
+
     // odometryの値の初期化
 	robot_x = 0.0;
 	robot_y = 0.0;
@@ -186,6 +198,7 @@ int main(int argc, char ** argv){
         } 
     }
     
+    sound_pub_.publish(sound_request);
     goal.pose.position.x = 1.0;
     goal.pose.position.y = 0.0;
 
@@ -194,6 +207,10 @@ int main(int argc, char ** argv){
         ros::spinOnce();
         if(flag1_ ){
         //&& flag2_){
+            sound_request.arg = MOVE_WORDS;
+            sound_pub_.publish(sound_request);
+            sleep(2);
+
             while(ros::ok()){
                 ros::spinOnce();
                 go_position(goal);
@@ -204,6 +221,9 @@ int main(int argc, char ** argv){
                     break;
                 } 
             }
+
+            sound_request.arg = ATTACK_WORDS;
+            sound_pub_.publish(sound_request);
             dynamixel_sdk_examples::SetPosition msg;
             msg.id = 1;
             msg.position = ARM_OPEN;
@@ -216,6 +236,9 @@ int main(int argc, char ** argv){
             break;
         }
     }
+
+    sound_request.arg = END_WORDS;
+    sound_pub_.publish(sound_request);
     return 0;
 
 }
