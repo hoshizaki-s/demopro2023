@@ -1,0 +1,13 @@
+<launch>
+    <node name="ypspur_ros" pkg="ypspur_ros" type="ypspur_ros" output="screen">
+        <param name="port" value="/dev/serial/by-id/usb-T-frog_project_T-frog_Driver-if00"/>
+        <param name="param_file" value="/home/hoshizaki-s/researches/programs/platform/yp-robot-params/robot-params/M1.param"/>
+    </node>
+    <node name="read_write_node" pkg="dynamixel_sdk_examples" type="read_write_node" output="screen">
+    </node>
+    <!--
+    <node name="harisen_controller" pkg="demopro2023" type="harisen_controller" output="screen">
+    </node>
+    -->
+    
+</launch>

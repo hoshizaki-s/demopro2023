@@ -16,7 +16,8 @@
 
 #define ARM_CLOSE 1000
 #define ARM_OPEN 0
-#define MAX_VEL 0.2
+#define MAX_VEL 0.15
+#define MAX_OMEGA 0.05
 
 using namespace dynamixel;
 
@@ -66,7 +67,7 @@ int near_position(geometry_msgs::PoseStamped fgoal)
 void go_position(geometry_msgs::PoseStamped fgoal)
 {
     double k_v = 0.8; // 速度の係数	0.1
-    double k_w = 0.1; // 角速度の係数
+    double k_w = 0.5; // 角速度の係数
 	
 	// 指令する速度と角速度
 	double v = 0.0;
@@ -108,13 +109,16 @@ void go_position(geometry_msgs::PoseStamped fgoal)
     v = k_v * (fgoal.pose.position.x - robot_x);
 
 	// 速度の計算(追従する点が自分より前か後ろかで計算を変更)	クリッピングも関数化したほうが良い。
-	if (theta <= M_PI / 2 && theta >= -M_PI / 2)
+	if ((theta <= (M_PI / 2)) && (theta >= (-M_PI / 2)))
 		w = k_w * theta;
 	else
 		w = -k_w * theta;
 	
     if(abs(v) > MAX_VEL){
-        v = 0.15*v/abs(v);
+        v = MAX_VEL*v/abs(v);
+    }
+    if(abs(w) > MAX_OMEGA){
+        w = MAX_VEL*w/abs(w);
     }
 
 	// publishする値の格納
