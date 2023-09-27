@@ -5,6 +5,8 @@
     </node>
     <node name="read_write_node" pkg="dynamixel_sdk_examples" type="read_write_node" output="screen">
     </node>
+    <node name="sound_playnode" pkg="sound_play" type="soundplay_node.py" output="screen">
+    </node>
     <!--
     <node name="harisen_controller" pkg="demopro2023" type="harisen_controller" output="screen">
     </node>

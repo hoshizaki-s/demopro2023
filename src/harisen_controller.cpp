@@ -4,6 +4,8 @@
 #include "dynamixel_sdk_examples/GetPosition.h"
 #include "dynamixel_sdk_examples/SetPosition.h"
 #include "dynamixel_sdk/dynamixel_sdk.h"
+//#include <sound_play.h>
+
 
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Twist.h>
@@ -22,7 +24,7 @@
 using namespace dynamixel;
 
 bool flag1_ = false;
-bool flag2_ = false;
+//bool flag2_ = false;
 bool end_flag_ = false;
 ros::Publisher set_position_pub_;
 ros::Subscriber first_flag_sub_;
@@ -135,18 +137,20 @@ void go_position(geometry_msgs::PoseStamped fgoal)
 }
 
 void flag1_callback(const std_msgs::Int32 flag){
-    flag1_ = (0==flag.data);
+    std::cout << "call back" << std::endl;
+    flag1_ = (1==flag.data);
+    std::cout << flag.data << std::endl;
 }
-void flag2_callback(const std_msgs::Int32 flag){
-    flag2_ = (0==flag.data);
-}
+// void flag2_callback(const std_msgs::Int32 flag){
+//     flag2_ = (1==flag.data);
+// }
 
 int main(int argc, char ** argv){
     ros::init(argc, argv, "harisen_controller");
     ros::NodeHandle nh_;
     set_position_pub_ = nh_.advertise<dynamixel_sdk_examples::SetPosition>("/set_position", 10);
     first_flag_sub_ = nh_.subscribe("/first_flag", 10, flag1_callback);
-    second_flag_sub_ = nh_.subscribe("/second_flag", 10, flag2_callback);
+    //second_flag_sub_ = nh_.subscribe("/second_flag", 10, flag2_callback);
 
     ros::Subscriber odom_sub = nh_.subscribe("ypspur_ros/odom", 100, odom_callback);
 	twist_pub_ = nh_.advertise<geometry_msgs::Twist>("ypspur_ros/cmd_vel", 1000);
@@ -168,6 +172,7 @@ int main(int argc, char ** argv){
 
     goal.pose.position.x = 0.0;
     goal.pose.position.y = 0.0;
+    
 
     while(ros::ok()){
         ros::spinOnce();
@@ -175,7 +180,8 @@ int main(int argc, char ** argv){
         if (near_position(goal)){
             twist.linear.x = 0.0;
             twist.angular.z = 0.0;
-            twist_pub_.publish(twist);   
+            twist_pub_.publish(twist);
+            sleep(10);   
             break;
         } 
     }
@@ -186,7 +192,8 @@ int main(int argc, char ** argv){
     while(ros::ok()){
         if(end_flag_)break;
         ros::spinOnce();
-        if(flag1_ && flag2_){
+        if(flag1_ ){
+        //&& flag2_){
             while(ros::ok()){
                 ros::spinOnce();
                 go_position(goal);
