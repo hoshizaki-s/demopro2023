@@ -7,6 +7,6 @@ dynamixcel_sdk_example,<br>
 sound_play<br>
 が必須．
 
-#起動方法
+#　起動方法
 roslaunch demopro2023 harisen_controller.launch<br>
 rosrun demopro2023 harisen_controller<br>
